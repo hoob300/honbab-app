@@ -6,14 +6,32 @@
 // =====================================================
 
 import { useState, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { FilterBar } from '@/components/FilterBar'
-import { MapView } from '@/components/MapView'
 import { RestaurantCard } from '@/components/RestaurantCard'
 import { BottomSheet } from '@/components/BottomSheet'
 import { useGeolocation } from '@/hooks/useGeolocation'
 import { useFavorites } from '@/hooks/useFavorites'
 import { useRestaurants } from '@/hooks/useRestaurants'
 import { Restaurant, FilterOptions, ViewMode, DEFAULT_FILTERS } from '@/lib/types'
+
+// 네이버 지도는 브라우저에서만 동작하므로 SSR(서버 렌더링)을 비활성화합니다
+// window, document 같은 브라우저 전용 객체를 서버에서 실행하면 오류가 발생합니다
+const MapView = dynamic(
+  () => import('@/components/MapView').then(mod => mod.MapView),
+  {
+    ssr: false,  // 서버에서 렌더링하지 않음
+    loading: () => (
+      // 지도 로딩 중 표시할 플레이스홀더
+      <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-[3px] border-brand-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">지도 불러오는 중...</p>
+        </div>
+      </div>
+    ),
+  }
+)
 
 export default function HomePage() {
   // ── 상태(State) 관리 ──
