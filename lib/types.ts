@@ -88,6 +88,7 @@ export interface FilterOptions {
   maxDistance: number         // 최대 거리 (미터, 0 = 제한 없음)
   minRating: number           // 최소 평점 (0 = 제한 없음)
   sortBy: SortOption          // 정렬 기준
+  searchQuery: string         // 키워드 검색어
 }
 
 // 정렬 기준 옵션
@@ -108,6 +109,7 @@ export const DEFAULT_FILTERS: FilterOptions = {
   maxDistance: 0,
   minRating: 0,
   sortBy: 'distance',
+  searchQuery: '',
 }
 
 // 뷰 모드 (지도 or 리스트)

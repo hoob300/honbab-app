@@ -5,7 +5,7 @@
 // 네이버 지도 + 식당 리스트 + 필터가 모두 이 페이지에 있습니다
 // =====================================================
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { FilterBar } from '@/components/FilterBar'
 import { RestaurantCard } from '@/components/RestaurantCard'
@@ -48,6 +48,8 @@ export default function HomePage() {
   const [filters, setFilters] = useState<FilterOptions>(DEFAULT_FILTERS)
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null)
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+  const [searchInput, setSearchInput] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
 
   // ── 커스텀 훅 ──
   const { location: userLocation, error: locationError, loading: locationLoading } = useGeolocation()
@@ -73,6 +75,19 @@ export default function HomePage() {
     setShowFavoritesOnly(!showFavoritesOnly)
     setSelectedRestaurant(null)
   }
+
+  // 검색 실행 (엔터 or 버튼 클릭)
+  const handleSearch = useCallback(() => {
+    const q = searchInput.trim()
+    setFilters(prev => ({ ...prev, searchQuery: q }))
+    searchRef.current?.blur()
+  }, [searchInput])
+
+  // 검색어 초기화
+  const handleClearSearch = useCallback(() => {
+    setSearchInput('')
+    setFilters(prev => ({ ...prev, searchQuery: '' }))
+  }, [])
 
   // ── 마운트 전 로딩 화면 ──
   // 서버 렌더링 결과와 클라이언트 초기 렌더링을 동일하게 유지하기 위해
@@ -121,6 +136,38 @@ export default function HomePage() {
               <span className="text-green-600 font-medium">📍 내 위치 기준</span>
             )}
           </div>
+        </div>
+
+        {/* ── 검색바 ── */}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex-1 flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2.5">
+            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              ref={searchRef}
+              type="text"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              placeholder="식당 이름, 음식 종류 검색..."
+              className="flex-1 bg-transparent text-sm text-gray-800 placeholder-gray-400 outline-none"
+            />
+            {searchInput && (
+              <button onClick={handleClearSearch} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          <button
+            onClick={handleSearch}
+            className="px-4 py-2.5 bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-green-600 active:bg-green-700 transition-colors flex-shrink-0"
+          >
+            검색
+          </button>
         </div>
 
         {/* 뷰 모드 전환 탭 */}

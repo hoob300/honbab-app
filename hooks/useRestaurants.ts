@@ -27,6 +27,7 @@ export function useRestaurants(
         })
         if (filters.categories.length > 0) params.set('categories', filters.categories.join(','))
         if (filters.priceRanges.length > 0) params.set('priceRanges', filters.priceRanges.join(','))
+        if (filters.searchQuery) params.set('q', filters.searchQuery)
 
         const res = await fetch(`/api/restaurants?${params}`)
         const data = await res.json()

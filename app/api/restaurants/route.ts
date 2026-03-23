@@ -118,6 +118,7 @@ export async function GET(request: NextRequest) {
   const hasSoloSeat = searchParams.get('hasSoloSeat') === 'true'
   const isOpen = searchParams.get('isOpen') === 'true'
   const categories = searchParams.get('categories')?.split(',').filter(Boolean) || []
+  const searchQuery = searchParams.get('q') || ''
 
   // ── 1순위: 네이버 지역 검색 API ──
   const naverClientId = process.env.NAVER_CLIENT_ID
@@ -128,9 +129,12 @@ export async function GET(request: NextRequest) {
       // 현재 위치 → 동네 이름 추출 (실패해도 계속 진행)
       const district = await reverseGeocode(lat, lng)
 
-      // 검색 쿼리 구성: 동네명 + 키워드 조합으로 여러 번 검색
+      // 검색 쿼리 구성: 사용자 검색어 우선, 없으면 기본 혼밥 키워드
       const queries: string[] = []
-      if (district) {
+      if (searchQuery) {
+        // 키워드 검색: "{동네} {검색어}" 형태
+        queries.push(district ? `${district} ${searchQuery}` : searchQuery)
+      } else if (district) {
         queries.push(`${district} 혼밥 식당`)
         queries.push(`${district} 1인 식당`)
         if (categories.length > 0) queries.push(`${district} ${categories[0]}`)
