@@ -100,6 +100,16 @@ export function MapView({
     }
   }, [])
 
+  // ── 위치 확인 후 지도 중심 이동 ──
+  // 지도가 이미 초기화된 상태에서 위치 정보가 들어오면 중심을 이동합니다
+  useEffect(() => {
+    if (!mapInstance.current || !userLocation) return
+    if (!window.naver || !window.naver.maps) return
+    mapInstance.current.panTo(
+      new window.naver.maps.LatLng(userLocation.lat, userLocation.lng)
+    )
+  }, [userLocation])
+
   // ── 지도 초기화 (스크립트 로드 완료 후) ──
   useEffect(() => {
     if (!mapLoaded || !mapRef.current || mapInstance.current) return
