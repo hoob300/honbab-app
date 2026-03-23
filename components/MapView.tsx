@@ -72,9 +72,16 @@ export function MapView({
     script.async = true
 
     // 스크립트 로드 성공
-    script.onload = () => setMapLoaded(true)
+    script.onload = () => {
+      // 인증 실패 시 window.naver.maps가 없을 수 있으므로 확인
+      if (window.naver && window.naver.maps) {
+        setMapLoaded(true)
+      } else {
+        setScriptError(true)
+      }
+    }
 
-    // 스크립트 로드 실패 (잘못된 API 키 등)
+    // 스크립트 로드 실패 (잘못된 API 키, 도메인 미등록 등)
     script.onerror = () => {
       console.error('네이버 지도 스크립트를 불러올 수 없어요.')
       setScriptError(true)
@@ -91,20 +98,29 @@ export function MapView({
   // ── 지도 초기화 (스크립트 로드 완료 후) ──
   useEffect(() => {
     if (!mapLoaded || !mapRef.current || mapInstance.current) return
+    if (!window.naver || !window.naver.maps) {
+      setScriptError(true)
+      return
+    }
 
     // 초기 지도 중심 위치 (사용자 위치 또는 강남역)
     const center = userLocation || { lat: 37.4979, lng: 127.0276 }
 
-    // 네이버 지도 생성
-    mapInstance.current = new window.naver.maps.Map(mapRef.current, {
-      center: new window.naver.maps.LatLng(center.lat, center.lng),
-      zoom: 15,                    // 줌 레벨 (1=세계, 21=건물)
-      zoomControl: true,           // 줌 버튼 표시
-      zoomControlOptions: {
-        position: window.naver.maps.Position.TOP_RIGHT,  // 오른쪽 상단
-      },
-      mapTypeControl: false,       // 지도 타입 버튼 숨기기 (심플하게)
-    })
+    try {
+      // 네이버 지도 생성
+      mapInstance.current = new window.naver.maps.Map(mapRef.current, {
+        center: new window.naver.maps.LatLng(center.lat, center.lng),
+        zoom: 15,
+        zoomControl: true,
+        zoomControlOptions: {
+          position: window.naver.maps.Position.TOP_RIGHT,
+        },
+        mapTypeControl: false,
+      })
+    } catch (e) {
+      console.error('지도 초기화 실패:', e)
+      setScriptError(true)
+    }
   }, [mapLoaded, userLocation])
 
   // ── 내 위치 마커 표시 ──
