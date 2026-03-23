@@ -29,11 +29,11 @@ export async function GET(request: NextRequest) {
       })
 
       // 거리 계산 후 정렬
-      const withDistance = restaurants.map(r => ({
+      const withDistance = restaurants.map((r: Restaurant) => ({
         ...r,
         distance: calculateDistance(lat, lng, r.location.lat, r.location.lng),
       }))
-      withDistance.sort((a, b) => (a.distance || 0) - (b.distance || 0))
+      withDistance.sort((a: Restaurant, b: Restaurant) => (a.distance || 0) - (b.distance || 0))
 
       return NextResponse.json({ restaurants: withDistance, total: withDistance.length, source: 'supabase' })
     }

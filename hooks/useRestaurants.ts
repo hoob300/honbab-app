@@ -1,107 +1,87 @@
 'use client'
 
-// =====================================================
-// 식당 데이터 훅 - 식당 목록을 가져오고 필터링/정렬하는 기능입니다
-// =====================================================
-
-import { useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Restaurant, FilterOptions, LatLng } from '@/lib/types'
-import { MOCK_RESTAURANTS, calculateDistance } from '@/lib/mockData'
+import { calculateDistance } from '@/lib/mockData'
 
-// useRestaurants 훅 - 필터와 위치 정보를 받아 알맞은 식당 목록을 반환합니다
 export function useRestaurants(
-  filters: FilterOptions,    // 사용자가 설정한 필터 조건
-  userLocation: LatLng | null  // 사용자의 현재 위치
+  filters: FilterOptions,
+  userLocation: LatLng | null
 ) {
-  // useMemo: 필터나 위치가 바뀔 때만 다시 계산 (성능 최적화)
-  const restaurants = useMemo(() => {
-    // 기본 데이터에 거리 정보 추가
-    let result: Restaurant[] = MOCK_RESTAURANTS.map(restaurant => ({
-      ...restaurant,
-      // 사용자 위치가 있으면 거리 계산, 없으면 undefined
-      distance: userLocation
-        ? calculateDistance(
-            userLocation.lat, userLocation.lng,
-            restaurant.location.lat, restaurant.location.lng
-          )
-        : undefined,
-    }))
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([])
+  const [loading, setLoading] = useState(true)
 
-    // ── 필터 적용 단계 ──
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        const lat = userLocation?.lat ?? 37.4979
+        const lng = userLocation?.lng ?? 127.0276
 
-    // 혼밥 가능 필터: 혼밥이 가능한 식당만 보기
-    if (filters.soloFriendly) {
-      result = result.filter(r => r.soloFriendly)
-    }
+        const params = new URLSearchParams({
+          lat: String(lat),
+          lng: String(lng),
+          soloFriendly: String(filters.soloFriendly),
+          hasSoloSeat: String(filters.hasSoloSeat),
+          isOpen: String(filters.isOpen),
+        })
+        if (filters.categories.length > 0) params.set('categories', filters.categories.join(','))
+        if (filters.priceRanges.length > 0) params.set('priceRanges', filters.priceRanges.join(','))
 
-    // 1인석 필터: 전용 1인석이 있는 식당만 보기
-    if (filters.hasSoloSeat) {
-      result = result.filter(r => r.hasSoloSeat)
-    }
+        const res = await fetch(`/api/restaurants?${params}`)
+        const data = await res.json()
 
-    // 영업 중 필터: 지금 영업하는 식당만 보기
-    if (filters.isOpen) {
-      result = result.filter(r => r.isOpen)
-    }
+        let result: Restaurant[] = (data.restaurants || []).map((r: Restaurant) => ({
+          ...r,
+          distance: calculateDistance(lat, lng, r.location.lat, r.location.lng),
+        }))
 
-    // 음식 카테고리 필터: 선택한 카테고리에 해당하는 식당만 보기
-    if (filters.categories.length > 0) {
-      result = result.filter(r => filters.categories.includes(r.category))
-    }
+        // 거리 필터
+        if (filters.maxDistance > 0) {
+          result = result.filter(r => r.distance !== undefined && r.distance <= filters.maxDistance)
+        }
 
-    // 가격대 필터: 선택한 가격대에 해당하는 식당만 보기
-    if (filters.priceRanges.length > 0) {
-      result = result.filter(r => filters.priceRanges.includes(r.priceRange))
-    }
+        // 최소 평점 필터
+        if (filters.minRating > 0) {
+          result = result.filter(r => r.rating >= filters.minRating)
+        }
 
-    // 거리 필터: 특정 거리 이내의 식당만 보기
-    if (filters.maxDistance > 0) {
-      result = result.filter(r =>
-        r.distance !== undefined && r.distance <= filters.maxDistance
-      )
-    }
+        // 정렬
+        result.sort((a, b) => {
+          switch (filters.sortBy) {
+            case 'distance':
+              if (a.distance === undefined) return 1
+              if (b.distance === undefined) return -1
+              return a.distance - b.distance
+            case 'rating':
+              return b.rating - a.rating
+            case 'price_asc':
+              return a.minPrice - b.minPrice
+            case 'price_desc':
+              return b.avgPrice - a.avgPrice
+            case 'review':
+              return b.reviewCount - a.reviewCount
+            default:
+              return 0
+          }
+        })
 
-    // 최소 평점 필터: 설정한 평점 이상인 식당만 보기
-    if (filters.minRating > 0) {
-      result = result.filter(r => r.rating >= filters.minRating)
-    }
-
-    // ── 정렬 단계 ──
-    result.sort((a, b) => {
-      switch (filters.sortBy) {
-        case 'distance':
-          // 거리순: 가까운 곳 먼저 (거리 정보 없으면 맨 뒤로)
-          if (a.distance === undefined) return 1
-          if (b.distance === undefined) return -1
-          return a.distance - b.distance
-
-        case 'rating':
-          // 평점순: 높은 평점 먼저
-          return b.rating - a.rating
-
-        case 'price_asc':
-          // 가격 낮은순: 저렴한 곳 먼저 (최저가 기준)
-          return a.minPrice - b.minPrice
-
-        case 'price_desc':
-          // 가격 높은순: 비싼 곳 먼저
-          return b.avgPrice - a.avgPrice
-
-        case 'review':
-          // 리뷰 많은순: 리뷰가 많은 곳 먼저
-          return b.reviewCount - a.reviewCount
-
-        default:
-          return 0
+        setRestaurants(result)
+      } catch (e) {
+        console.error('식당 데이터 불러오기 실패:', e)
+        setRestaurants([])
+      } finally {
+        setLoading(false)
       }
-    })
+    }
 
-    return result
-  }, [filters, userLocation])  // 이 두 값이 바뀔 때만 재계산
+    fetchData()
+  }, [filters, userLocation])
 
   return {
-    restaurants,                    // 필터링/정렬된 식당 목록
-    total: restaurants.length,      // 전체 결과 수
-    hasResults: restaurants.length > 0,  // 결과가 하나라도 있는지
+    restaurants,
+    total: restaurants.length,
+    hasResults: restaurants.length > 0,
+    loading,
   }
 }

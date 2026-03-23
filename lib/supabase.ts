@@ -1,25 +1,14 @@
-// =====================================================
-// Supabase 클라이언트 설정 파일
-// 환경 변수가 없을 때도 앱이 정상 동작하도록 안전하게 초기화합니다
-// =====================================================
-
 import { createClient } from '@supabase/supabase-js'
+import { FoodCategory, PriceRange } from './types'
 
-// Supabase 연결이 활성화되어 있는지 확인하는 함수
 export function isSupabaseEnabled(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  return !!(
-    url && key &&
-    url !== 'YOUR_SUPABASE_URL' &&
-    url.startsWith('https://')
-  )
+  return !!(url && key && url !== 'YOUR_SUPABASE_URL' && url.startsWith('https://'))
 }
 
-// Supabase 클라이언트를 한 번만 생성하기 위한 변수 (싱글톤 패턴)
 let _client: ReturnType<typeof createClient> | null = null
 
-// 클라이언트를 가져오는 함수 - 환경 변수가 없으면 null 반환
 function getClient() {
   if (!isSupabaseEnabled()) return null
   if (!_client) {
@@ -31,9 +20,42 @@ function getClient() {
   return _client
 }
 
-// ── 식당 관련 DB 함수들 ──
+// DB category(영문) → 앱 카테고리(한글) 변환
+function mapCategory(cat: string): FoodCategory {
+  const map: Record<string, FoodCategory> = {
+    korean: '한식', japanese: '일식', chinese: '중식',
+    western: '양식', snack: '분식', fastfood: '패스트푸드', cafe: '카페',
+  }
+  return map[cat] ?? '기타'
+}
 
-// 식당 목록 가져오기 (필터 조건 적용)
+// DB price_range(숫자) → 앱 priceRange(문자) 변환
+function mapPriceRange(price: number): PriceRange {
+  if (price < 10000) return 'cheap'
+  if (price <= 20000) return 'moderate'
+  return 'expensive'
+}
+
+// "06:00 - 22:00" 형식에서 open/close time 파싱
+function parseOpenHours(openHours: string): { openTime: string; closeTime: string; isOpen: boolean } {
+  const parts = openHours?.split(' - ') ?? []
+  const openTime = parts[0]?.trim() ?? ''
+  const closeTime = parts[1]?.trim() ?? ''
+
+  let isOpen = false
+  if (openTime && closeTime) {
+    const now = new Date()
+    const [oh, om] = openTime.split(':').map(Number)
+    const [ch, cm] = closeTime.split(':').map(Number)
+    const nowMin = now.getHours() * 60 + now.getMinutes()
+    const openMin = oh * 60 + om
+    const closeMin = ch * 60 + cm
+    isOpen = nowMin >= openMin && nowMin < closeMin
+  }
+
+  return { openTime, closeTime, isOpen }
+}
+
 export async function fetchRestaurants(options: {
   lat: number
   lng: number
@@ -44,65 +66,62 @@ export async function fetchRestaurants(options: {
   priceRanges?: string[]
 }) {
   const client = getClient()
-  if (!client) return []  // Supabase 미설정 시 빈 배열 반환
+  if (!client) return []
 
-  let query = client
-    .from('restaurants')
-    .select('*, menus (id, name, price, is_popular)')
+  let query = client.from('restaurants').select('*')
 
   if (options.soloFriendly) query = query.eq('solo_friendly', true)
-  if (options.hasSoloSeat)  query = query.eq('has_solo_seat', true)
-  if (options.isOpen)       query = query.eq('is_open', true)
-  if (options.categories?.length)  query = query.in('category', options.categories)
-  if (options.priceRanges?.length) query = query.in('price_range', options.priceRanges)
+  if (options.hasSoloSeat)  query = query.eq('has_single_seat', true)
 
-  query = query.order('rating', { ascending: false })
-
-  const { data, error } = await query
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (query as any)
   if (error) { console.error('식당 데이터 오류:', error.message); return [] }
 
-  // DB 컬럼명(snake_case) → 앱 타입(camelCase) 변환
-  return (data || []).map((row: any) => ({
-    id: row.id,
-    name: row.name,
-    category: row.category,
-    address: row.address,
-    phone: row.phone || '',
-    location: { lat: row.lat, lng: row.lng },
-    soloFriendly: row.solo_friendly,
-    hasSoloSeat:  row.has_solo_seat,
-    avgPrice:     row.avg_price,
-    minPrice:     row.min_price,
-    priceRange:   row.price_range,
-    rating:       parseFloat(row.rating),
-    reviewCount:  row.review_count,
-    openTime:     row.open_time,
-    closeTime:    row.close_time,
-    isOpen:       row.is_open,
-    closedDays:   row.closed_days || [],
-    thumbnail:    row.thumbnail || '',
-    images:       row.images || [],
-    menus: (row.menus || []).map((m: any) => ({
-      name: m.name, price: m.price, isPopular: m.is_popular,
-    })),
-    tags:        row.tags || [],
-    naverMapUrl: row.naver_map_url || '',
-  }))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data || []).map((row: any) => {
+    const { openTime, closeTime, isOpen } = parseOpenHours(row.open_hours)
+    const priceRange = mapPriceRange(row.price_range)
+
+    return {
+      id: row.id,
+      name: row.name,
+      category: mapCategory(row.category),
+      address: row.road_address || row.address || '',
+      phone: row.phone || '',
+      location: { lat: row.lat, lng: row.lng },
+      soloFriendly: row.solo_friendly ?? false,
+      hasSoloSeat: row.has_single_seat ?? false,
+      avgPrice: row.price_range ?? 0,
+      minPrice: row.price_range ?? 0,
+      priceRange,
+      rating: row.rating ?? 0,
+      reviewCount: row.review_count ?? 0,
+      openTime,
+      closeTime,
+      isOpen,
+      closedDays: row.closed_days ?? [],
+      thumbnail: row.thumbnail ?? '',
+      images: row.images ?? [],
+      menus: row.menu_highlight
+        ? [{ name: row.menu_highlight, price: row.price_range ?? 0, isPopular: true }]
+        : [],
+      tags: row.tags ?? [],
+      naverMapUrl: row.naver_map_url ?? '',
+    }
+  })
 }
 
-// 즐겨찾기 목록 가져오기 (세션 ID 기반)
 export async function fetchFavorites(sessionId: string): Promise<string[]> {
   const client = getClient()
   if (!client) return []
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (client as any)
     .from('favorites').select('restaurant_id').eq('session_id', sessionId)
   if (error) return []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data || []).map((row: any) => row.restaurant_id as string)
 }
 
-// 즐겨찾기 추가
 export async function addFavorite(sessionId: string, restaurantId: string): Promise<boolean> {
   const client = getClient()
   if (!client) return false
@@ -112,7 +131,6 @@ export async function addFavorite(sessionId: string, restaurantId: string): Prom
   return !error
 }
 
-// 즐겨찾기 제거
 export async function removeFavorite(sessionId: string, restaurantId: string): Promise<boolean> {
   const client = getClient()
   if (!client) return false
