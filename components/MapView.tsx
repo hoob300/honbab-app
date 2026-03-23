@@ -71,14 +71,19 @@ export function MapView({
     script.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${clientId}&submodules=geocoder`
     script.async = true
 
-    // 스크립트 로드 성공
+    // 스크립트 로드 성공 - onload 시점에 naver.maps가 아직 세팅 중일 수 있어
+    // 짧게 대기 후 확인
     script.onload = () => {
-      // 인증 실패 시 window.naver.maps가 없을 수 있으므로 확인
-      if (window.naver && window.naver.maps) {
-        setMapLoaded(true)
-      } else {
-        setScriptError(true)
+      const check = (retries: number) => {
+        if (window.naver && window.naver.maps) {
+          setMapLoaded(true)
+        } else if (retries > 0) {
+          setTimeout(() => check(retries - 1), 200)
+        } else {
+          setScriptError(true)
+        }
       }
+      check(10) // 최대 2초(10 × 200ms) 대기
     }
 
     // 스크립트 로드 실패 (잘못된 API 키, 도메인 미등록 등)
