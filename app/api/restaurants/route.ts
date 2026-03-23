@@ -75,30 +75,52 @@ async function searchNaverLocal(query: string, display = 20): Promise<any[]> {
   }
 }
 
+// 현재 한국 시간 기준으로 영업 중인지 판단 (단순 추정: 09:00~22:00)
+function estimateIsOpen(): boolean {
+  const now = new Date()
+  // KST = UTC+9
+  const kstHour = (now.getUTCHours() + 9) % 24
+  return kstHour >= 9 && kstHour < 22
+}
+
 // 네이버 지역 검색 결과 → Restaurant 타입 변환
 function mapNaverItem(item: any, idx: number, userLat: number, userLng: number): Restaurant {
   // mapx/mapy는 WGS84 좌표 × 10,000,000
   const itemLat = Number(item.mapy) / 10000000
   const itemLng = Number(item.mapx) / 10000000
   const distance = calculateDistance(userLat, userLng, itemLat, itemLng)
+  const category = mapCategory(item.category)
+
+  // 카테고리별 가격대 추정
+  const priceMap: Record<string, { min: number; avg: number; range: 'cheap' | 'moderate' | 'expensive' }> = {
+    '한식':     { min: 8000,  avg: 10000, range: 'moderate' },
+    '중식':     { min: 7000,  avg: 9000,  range: 'cheap' },
+    '일식':     { min: 10000, avg: 15000, range: 'moderate' },
+    '양식':     { min: 12000, avg: 18000, range: 'moderate' },
+    '분식':     { min: 4000,  avg: 6000,  range: 'cheap' },
+    '패스트푸드': { min: 5000,  avg: 7000,  range: 'cheap' },
+    '카페':     { min: 4000,  avg: 6000,  range: 'cheap' },
+    '기타':     { min: 8000,  avg: 12000, range: 'moderate' },
+  }
+  const priceInfo = priceMap[category] || priceMap['기타']
 
   return {
     id: `naver-${idx}-${item.mapx}`,
     name: stripHtml(item.title),
-    category: mapCategory(item.category) as any,
+    category: category as any,
     address: item.roadAddress || item.address || '',
     phone: item.telephone || '',
     location: { lat: itemLat, lng: itemLng },
     soloFriendly: true,
     hasSoloSeat: false,
-    avgPrice: 10000,
-    minPrice: 8000,
-    priceRange: 'moderate' as any,
+    avgPrice: priceInfo.avg,
+    minPrice: priceInfo.min,
+    priceRange: priceInfo.range,
     rating: 0,
     reviewCount: 0,
-    openTime: '11:00',
-    closeTime: '21:00',
-    isOpen: true,
+    openTime: '09:00',
+    closeTime: '22:00',
+    isOpen: estimateIsOpen(),
     closedDays: [],
     thumbnail: '',
     images: [],

@@ -111,6 +111,18 @@ export function FilterBar({ filters, onChange, totalResults }: FilterBarProps) {
         {/* 구분선 */}
         <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
 
+        {/* 전체 버튼 (기본값 - 아무 필터도 없는 상태) */}
+        <button
+          onClick={() => onChange(DEFAULT_FILTERS)}
+          className={`px-3 py-1.5 rounded-full border text-sm font-medium whitespace-nowrap transition-colors ${
+            activeFilterCount === 0
+              ? 'bg-brand-500 text-white border-brand-500'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-brand-400'
+          }`}
+        >
+          전체
+        </button>
+
         {/* 빠른 필터 버튼들 (가장 자주 쓰는 필터) */}
         <button
           onClick={() => updateFilter('soloFriendly', !filters.soloFriendly)}

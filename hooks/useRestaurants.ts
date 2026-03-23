@@ -39,6 +39,31 @@ export function useRestaurants(
           distance: calculateDistance(lat, lng, r.location.lat, r.location.lng),
         }))
 
+        // 카테고리 필터
+        if (filters.categories.length > 0) {
+          result = result.filter(r => filters.categories.includes(r.category))
+        }
+
+        // 가격대 필터
+        if (filters.priceRanges.length > 0) {
+          result = result.filter(r => filters.priceRanges.includes(r.priceRange))
+        }
+
+        // 혼밥 가능 필터
+        if (filters.soloFriendly) {
+          result = result.filter(r => r.soloFriendly)
+        }
+
+        // 1인석 필터
+        if (filters.hasSoloSeat) {
+          result = result.filter(r => r.hasSoloSeat)
+        }
+
+        // 영업 중 필터
+        if (filters.isOpen) {
+          result = result.filter(r => r.isOpen)
+        }
+
         // 거리 필터
         if (filters.maxDistance > 0) {
           result = result.filter(r => r.distance !== undefined && r.distance <= filters.maxDistance)
