@@ -68,7 +68,7 @@ export function MapView({
 
     // 네이버 지도 스크립트 동적으로 추가
     const script = document.createElement('script')
-    script.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${clientId}&submodules=geocoder`
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}&submodules=geocoder`
     script.async = true
 
     // 스크립트 로드 성공 - onload 시점에 naver.maps가 아직 세팅 중일 수 있어
