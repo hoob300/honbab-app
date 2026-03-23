@@ -54,7 +54,7 @@ export default function HomePage() {
   // ── 커스텀 훅 ──
   const { location: userLocation, error: locationError, loading: locationLoading } = useGeolocation()
   const { favorites, isFavorite, toggleFavorite, count: favoriteCount } = useFavorites()
-  const { restaurants, total } = useRestaurants(filters, userLocation)
+  const { restaurants, total, loading: searchLoading } = useRestaurants(filters, userLocation)
 
   // 즐겨찾기 필터 적용
   const displayedRestaurants = showFavoritesOnly
@@ -79,7 +79,10 @@ export default function HomePage() {
   // 검색 실행 (엔터 or 버튼 클릭)
   const handleSearch = useCallback(() => {
     const q = searchInput.trim()
+    if (!q) return
     setFilters(prev => ({ ...prev, searchQuery: q }))
+    setShowFavoritesOnly(false)
+    setViewMode('list')   // 결과가 바로 보이도록 리스트뷰로 전환
     searchRef.current?.blur()
   }, [searchInput])
 
@@ -141,17 +144,21 @@ export default function HomePage() {
         {/* ── 검색바 ── */}
         <div className="flex items-center gap-2 mb-3">
           <div className="flex-1 flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2.5">
-            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            {searchLoading && filters.searchQuery ? (
+              <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+            ) : (
+              <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            )}
             <input
               ref={searchRef}
               type="text"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              placeholder="식당 이름, 음식 종류 검색..."
+              placeholder="지역명, 음식 종류 검색... (예: 라멘, 한식)"
               className="flex-1 bg-transparent text-sm text-gray-800 placeholder-gray-400 outline-none"
             />
             {searchInput && (
@@ -164,11 +171,28 @@ export default function HomePage() {
           </div>
           <button
             onClick={handleSearch}
-            className="px-4 py-2.5 bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-green-600 active:bg-green-700 transition-colors flex-shrink-0"
+            disabled={searchLoading || !searchInput.trim()}
+            className="px-4 py-2.5 bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-green-600 active:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
           >
             검색
           </button>
         </div>
+
+        {/* 검색 결과 안내 */}
+        {filters.searchQuery && !searchLoading && (
+          <div className="flex items-center justify-between mb-2 px-1">
+            <p className="text-xs text-gray-500">
+              <span className="font-semibold text-green-600">"{filters.searchQuery}"</span> 검색 결과{' '}
+              <span className="font-bold text-gray-800">{total}개</span>
+            </p>
+            <button
+              onClick={handleClearSearch}
+              className="text-xs text-gray-400 underline hover:text-gray-600"
+            >
+              검색 초기화
+            </button>
+          </div>
+        )}
 
         {/* 뷰 모드 전환 탭 */}
         <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
