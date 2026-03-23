@@ -27,26 +27,27 @@ function mapCategory(category: string): string {
   return '기타'
 }
 
-// 역지오코딩: 위도/경도 → 행정구역명 (NCP Maps API 사용)
+// 역지오코딩: 위도/경도 → 행정구역명 (OpenStreetMap Nominatim 사용 - 무료)
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
-  const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID
-  const clientSecret = process.env.NAVER_MAP_CLIENT_SECRET
-  if (!clientId || !clientSecret) return ''
-
   try {
-    const url = `https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=${lng},${lat}&output=json&orders=admcode`
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=ko`
     const res = await fetch(url, {
-      headers: {
-        'X-NCP-APIGW-API-KEY-ID': clientId,
-        'X-NCP-APIGW-API-KEY': clientSecret,
-      },
+      headers: { 'User-Agent': 'honbab-app/1.0' },
     })
     if (!res.ok) return ''
     const data = await res.json()
-    const region = data.results?.[0]?.region
-    const area2 = region?.area2?.name || '' // 구 이름 (예: 강남구)
-    const area3 = region?.area3?.name || '' // 동 이름 (예: 역삼동)
-    return (area3 || area2).trim()
+    const addr = data.address || {}
+    // 동 > 읍면 > 구 > 시 순으로 가장 세분화된 단위 반환
+    const district =
+      addr.suburb ||        // 동 (예: 역삼동)
+      addr.neighbourhood || // 인근 지역
+      addr.quarter ||
+      addr.borough ||
+      addr.city_district || // 구 (예: 강남구)
+      addr.county ||        // 군
+      addr.city ||          // 시 (예: 서울특별시)
+      ''
+    return district.trim()
   } catch {
     return ''
   }
