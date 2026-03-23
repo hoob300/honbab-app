@@ -124,35 +124,44 @@ export async function GET(request: NextRequest) {
 
   if (naverClientId && naverClientSecret) {
     try {
-      // 현재 위치 → 동네 이름 추출
+      // 현재 위치 → 동네 이름 추출 (실패해도 계속 진행)
       const district = await reverseGeocode(lat, lng)
 
-      // 검색 쿼리 생성: "역삼동 혼밥 식당" 또는 "혼밥 식당"
-      const baseQuery = district ? `${district} 혼밥 식당` : '혼밥 식당'
-
-      // 카테고리 필터 있으면 해당 카테고리도 검색
-      let items: any[] = []
-      if (categories.length > 0) {
-        const catQuery = `${district || ''} ${categories[0]} 혼밥`.trim()
-        items = await searchNaverLocal(catQuery, 20)
+      // 검색 쿼리 구성: 동네명 + 키워드 조합으로 여러 번 검색
+      const queries: string[] = []
+      if (district) {
+        queries.push(`${district} 혼밥 식당`)
+        queries.push(`${district} 1인 식당`)
+        if (categories.length > 0) queries.push(`${district} ${categories[0]}`)
       } else {
-        items = await searchNaverLocal(baseQuery, 20)
+        queries.push('혼밥 식당')
+        queries.push('1인 식당')
+      }
+
+      // 여러 쿼리 결과 합치기 (중복 제거)
+      const seen = new Set<string>()
+      let allItems: any[] = []
+      for (const q of queries) {
+        const items = await searchNaverLocal(q, 20)
+        for (const item of items) {
+          const key = `${item.mapx}-${item.mapy}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            allItems.push(item)
+          }
+        }
       }
 
       // 좌표 없는 항목 제외 후 Restaurant 타입으로 변환
-      let restaurants: Restaurant[] = items
-        .filter(item => item.mapx && item.mapy)
+      let restaurants: Restaurant[] = allItems
+        .filter(item => item.mapx && item.mapy && item.mapx !== '0' && item.mapy !== '0')
         .map((item, idx) => mapNaverItem(item, idx, lat, lng))
 
-      // 5km 이내로 필터링
-      restaurants = restaurants.filter(r => (r.distance ?? 9999) <= 5000)
+      // 거리순 정렬 후 가까운 순으로 최대 30개
+      restaurants.sort((a, b) => (a.distance ?? 99999) - (b.distance ?? 99999))
+      restaurants = restaurants.slice(0, 30)
 
-      // 혼밥 전용석 필터 (naver 데이터엔 이 정보 없으므로 hasSoloSeat 필터는 스킵)
-      // isOpen 필터
       if (isOpen) restaurants = restaurants.filter(r => r.isOpen)
-
-      // 거리순 정렬
-      restaurants.sort((a, b) => (a.distance ?? 9999) - (b.distance ?? 9999))
 
       return NextResponse.json({
         restaurants,
@@ -162,7 +171,6 @@ export async function GET(request: NextRequest) {
       })
     } catch (error) {
       console.error('네이버 검색 실패:', error)
-      // 아래 폴백으로 계속
     }
   }
 
