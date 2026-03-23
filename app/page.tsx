@@ -49,12 +49,13 @@ export default function HomePage() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null)
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
   const [searchInput, setSearchInput] = useState('')
+  const [searchCenter, setSearchCenter] = useState<{ lat: number; lng: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   // ── 커스텀 훅 ──
   const { location: userLocation, error: locationError, loading: locationLoading } = useGeolocation()
   const { favorites, isFavorite, toggleFavorite, count: favoriteCount } = useFavorites()
-  const { restaurants, total, loading: searchLoading } = useRestaurants(filters, userLocation)
+  const { restaurants, total, loading: searchLoading } = useRestaurants(filters, userLocation, searchCenter)
 
   // 즐겨찾기 필터 적용
   const displayedRestaurants = showFavoritesOnly
@@ -77,18 +78,34 @@ export default function HomePage() {
   }
 
   // 검색 실행 (엔터 or 버튼 클릭)
-  const handleSearch = useCallback(() => {
+  const handleSearch = useCallback(async () => {
     const q = searchInput.trim()
     if (!q) return
+
+    // 지역명을 좌표로 변환 (Nominatim 지오코딩)
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=ko`,
+        { headers: { 'User-Agent': 'honbab-app/1.0' } }
+      )
+      const data = await res.json()
+      if (data.length > 0) {
+        setSearchCenter({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) })
+      }
+    } catch {
+      // 지오코딩 실패 시 현재 위치 기준으로 계속 진행
+    }
+
     setFilters(prev => ({ ...prev, searchQuery: q }))
     setShowFavoritesOnly(false)
-    setViewMode('list')   // 결과가 바로 보이도록 리스트뷰로 전환
+    setViewMode('map')   // 지도 뷰 유지
     searchRef.current?.blur()
   }, [searchInput])
 
   // 검색어 초기화
   const handleClearSearch = useCallback(() => {
     setSearchInput('')
+    setSearchCenter(null)
     setFilters(prev => ({ ...prev, searchQuery: '' }))
   }, [])
 
@@ -259,6 +276,7 @@ export default function HomePage() {
             selectedRestaurant={selectedRestaurant}
             onMarkerClick={handleSelectRestaurant}
             favorites={favorites}
+            searchCenter={searchCenter}
           />
         </div>
 

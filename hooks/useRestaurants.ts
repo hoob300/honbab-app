@@ -6,7 +6,8 @@ import { calculateDistance } from '@/lib/mockData'
 
 export function useRestaurants(
   filters: FilterOptions,
-  userLocation: LatLng | null
+  userLocation: LatLng | null,
+  searchCenter?: LatLng | null
 ) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([])
   const [loading, setLoading] = useState(true)
@@ -15,8 +16,9 @@ export function useRestaurants(
     const fetchData = async () => {
       setLoading(true)
       try {
-        const lat = userLocation?.lat ?? 37.4979
-        const lng = userLocation?.lng ?? 127.0276
+        // 검색 중심 좌표 우선, 없으면 현재 위치, 없으면 강남역 기본값
+        const lat = searchCenter?.lat ?? userLocation?.lat ?? 37.4979
+        const lng = searchCenter?.lng ?? userLocation?.lng ?? 127.0276
 
         const params = new URLSearchParams({
           lat: String(lat),
@@ -77,7 +79,7 @@ export function useRestaurants(
     }
 
     fetchData()
-  }, [filters, userLocation])
+  }, [filters, userLocation, searchCenter])
 
   return {
     restaurants,

@@ -24,6 +24,7 @@ interface MapViewProps {
   selectedRestaurant: Restaurant | null  // 선택된 식당 (마커 강조 표시)
   onMarkerClick: (restaurant: Restaurant) => void  // 마커 클릭 시 실행
   favorites: string[]                // 즐겨찾기된 식당 ID 목록
+  searchCenter?: LatLng | null       // 검색으로 이동할 지도 중심 좌표
 }
 
 export function MapView({
@@ -32,6 +33,7 @@ export function MapView({
   selectedRestaurant,
   onMarkerClick,
   favorites,
+  searchCenter,
 }: MapViewProps) {
   // 지도를 렌더링할 HTML 요소 참조
   const mapRef = useRef<HTMLDivElement>(null)
@@ -109,6 +111,16 @@ export function MapView({
       new window.naver.maps.LatLng(userLocation.lat, userLocation.lng)
     )
   }, [userLocation])
+
+  // ── 검색 지역으로 지도 중심 이동 ──
+  useEffect(() => {
+    if (!mapInstance.current || !searchCenter) return
+    if (!window.naver || !window.naver.maps) return
+    mapInstance.current.panTo(
+      new window.naver.maps.LatLng(searchCenter.lat, searchCenter.lng)
+    )
+    mapInstance.current.setZoom(14)
+  }, [searchCenter])
 
   // ── 지도 초기화 (스크립트 로드 완료 후) ──
   useEffect(() => {
