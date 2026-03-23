@@ -50,6 +50,8 @@ export default function HomePage() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
   const [searchInput, setSearchInput] = useState('')
   const [searchCenter, setSearchCenter] = useState<{ lat: number; lng: number } | null>(null)
+  const [geocoding, setGeocoding] = useState(false)
+  const [geocodeMsg, setGeocodeMg] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   // ── 커스텀 훅 ──
@@ -82,18 +84,36 @@ export default function HomePage() {
     const q = searchInput.trim()
     if (!q) return
 
-    // 지역명을 좌표로 변환 (Nominatim 지오코딩)
+    setGeocoding(true)
+    setGeocodeMg(null)
+
+    // 지역명을 좌표로 변환 (Nominatim 지오코딩 - 한국 우선)
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=ko`,
-        { headers: { 'User-Agent': 'honbab-app/1.0' } }
-      )
-      const data = await res.json()
+      // 1차 시도: 한국 내 검색 (countrycodes=kr)
+      let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=ko&countrycodes=kr`
+      let res = await fetch(url, { headers: { 'User-Agent': 'honbab-app/1.0' } })
+      let data = await res.json()
+
+      // 2차 시도: "대한민국" 붙여서 검색
+      if (!data.length) {
+        url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ' 대한민국')}&format=json&limit=1&accept-language=ko`
+        res = await fetch(url, { headers: { 'User-Agent': 'honbab-app/1.0' } })
+        data = await res.json()
+      }
+
       if (data.length > 0) {
         setSearchCenter({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) })
+        setGeocodeMg(`📍 "${data[0].display_name.split(',')[0]}" 으로 이동`)
+        setTimeout(() => setGeocodeMg(null), 3000)
+      } else {
+        setGeocodeMg(`⚠️ "${q}" 위치를 찾지 못했어요. 현재 위치 기준으로 검색합니다.`)
+        setTimeout(() => setGeocodeMg(null), 3000)
       }
     } catch {
-      // 지오코딩 실패 시 현재 위치 기준으로 계속 진행
+      setGeocodeMg('위치 검색 중 오류가 발생했어요.')
+      setTimeout(() => setGeocodeMg(null), 2000)
+    } finally {
+      setGeocoding(false)
     }
 
     setFilters(prev => ({ ...prev, searchQuery: q }))
@@ -106,6 +126,7 @@ export default function HomePage() {
   const handleClearSearch = useCallback(() => {
     setSearchInput('')
     setSearchCenter(null)
+    setGeocodeMg(null)
     setFilters(prev => ({ ...prev, searchQuery: '' }))
   }, [])
 
@@ -188,15 +209,25 @@ export default function HomePage() {
           </div>
           <button
             onClick={handleSearch}
-            disabled={searchLoading || !searchInput.trim()}
-            className="px-4 py-2.5 bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-green-600 active:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+            disabled={geocoding || searchLoading || !searchInput.trim()}
+            className="px-4 py-2.5 bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-green-600 active:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0 flex items-center gap-1.5"
           >
+            {geocoding ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : null}
             검색
           </button>
         </div>
 
+        {/* 지오코딩 결과 메시지 */}
+        {geocodeMsg && (
+          <div className="mb-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-700 text-center">
+            {geocodeMsg}
+          </div>
+        )}
+
         {/* 검색 결과 안내 */}
-        {filters.searchQuery && !searchLoading && (
+        {filters.searchQuery && !searchLoading && !geocodeMsg && (
           <div className="flex items-center justify-between mb-2 px-1">
             <p className="text-xs text-gray-500">
               <span className="font-semibold text-green-600">"{filters.searchQuery}"</span> 검색 결과{' '}
