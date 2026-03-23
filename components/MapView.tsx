@@ -60,8 +60,8 @@ export function MapView({
     // 네이버 지도 API 키 (환경 변수에서 가져옴)
     const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID
 
-    // API 키가 없으면 더미 지도 표시
-    if (!clientId || clientId === 'YOUR_NAVER_MAP_CLIENT_ID_HERE') {
+    // API 키가 없거나 플레이스홀더이면 더미 지도 표시
+    if (!clientId || clientId.startsWith('YOUR_')) {
       setScriptError(true)
       return
     }
